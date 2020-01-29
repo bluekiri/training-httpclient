@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace HttpFactory.Named
@@ -17,6 +18,9 @@ namespace HttpFactory.Named
                   services.AddHttpClient("myclient", c => {
                       c.BaseAddress = new Uri("https://www.bbc.co.uk");
                   });
+                  services.AddHttpClient("myusersapi", c=> {
+                      c.BaseAddress = new Uri("https://jsonplaceholder.typicode.com");
+                  });
                   services.AddTransient<IMyService, MyService>();
               }).UseConsoleLifetime();
 
@@ -28,12 +32,21 @@ namespace HttpFactory.Named
             try
             {
                 var myService = services.GetRequiredService<IMyService>();
-                var pageContent = await myService.GetPage();
+                var pageContent = await myService.GetPage().ConfigureAwait(false);
+                
+                var userId = 1;
+                if(args.Length >0 && int.TryParse(args[0], out int res)){
+                    userId = res;
+                }
+
+                var user = await myService.GetUser(userId).ConfigureAwait(false);
 
                 Console.WriteLine(pageContent.Substring(0, 500));
+                Console.WriteLine($"User: {JsonSerializer.Serialize(user)}");
             }
             catch (Exception ex)
             {
+   
                 var logger = services.GetRequiredService<ILogger<Program>>();
 
                 logger.LogError(ex, "An error occurred.");
@@ -43,14 +56,26 @@ namespace HttpFactory.Named
             return 0;
         }
     }
+
+    public class UserDemo
+    {
+        public int UserId { get; set; }
+        public int Id { get; set; }
+        public string Title { get; set; }
+        public bool Completed { get; set; }
+    }
+
     public interface IMyService
     {
         Task<string> GetPage();
+        Task<UserDemo> GetUser(int id);
     }
 
     public class MyService : IMyService
     {
         private readonly IHttpClientFactory _clientFactory;
+
+        private static  JsonSerializerOptions JsonSerializerOptions => new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IgnoreNullValues =true };
 
         public MyService(IHttpClientFactory clientFactory)
         {
@@ -74,5 +99,62 @@ namespace HttpFactory.Named
                 return $"StatusCode: {response.StatusCode}";
             }
         }
+
+        public async Task<UserDemo> GetUser(int id) 
+        {
+
+            var request = new HttpRequestMessage(HttpMethod.Get,$"/todos/{id}");
+            var client = _clientFactory.CreateClient("myusersapi");
+            var response = await client.SendAsync(request).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                using var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions).ConfigureAwait(false);
+            }
+            return null;
+        }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
