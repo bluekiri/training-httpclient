@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Text.Json;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -11,6 +12,8 @@ namespace HttpFactory.Basic
     {
         static async Task<int> Main(string[] args)
         {
+            Console.WriteLine($"Process: {System.Diagnostics.Process.GetCurrentProcess().Id}");
+            Console.ReadKey();
             var builder = new HostBuilder()
              .ConfigureServices((hostContext, services) =>
              {
@@ -26,9 +29,9 @@ namespace HttpFactory.Basic
             try
             {
                 var myService = services.GetRequiredService<IMyService>();
-                var pageContent = await myService.GetPage();
+                var user = await myService.GetUser();
 
-                Console.WriteLine(pageContent.Substring(0, 500));
+                Console.WriteLine($"User: {JsonSerializer.Serialize(user)}");
             }
             catch (Exception ex)
             {
@@ -36,43 +39,52 @@ namespace HttpFactory.Basic
 
                 logger.LogError(ex, "An error occurred.");
             }
+            Console.ReadLine();
 
 
             return 0;
 
         }
     }
-
+    public class UserDemo
+    {
+        public int UserId { get; set; }
+        public int Id { get; set; }
+        public string Title { get; set; }
+        public bool Completed { get; set; }
+    }
     public interface IMyService
     {
-        Task<string> GetPage();
+        Task<UserDemo> GetUser();
+        
+    
     }
-
     public class MyService : IMyService
     {
         private readonly IHttpClientFactory _clientFactory;
 
+        private static  JsonSerializerOptions JsonSerializerOptions => new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IgnoreNullValues =true };
+        
         public MyService(IHttpClientFactory clientFactory)
         {
             _clientFactory = clientFactory;
         }
 
-        public async Task<string> GetPage()
+        public async Task<UserDemo> GetUser()
         {
+            
             // Content from BBC One: Dr. Who website (©BBC)
             var request = new HttpRequestMessage(HttpMethod.Get,
-                "https://www.bbc.co.uk/programmes/b006q2x0");
+                "https://jsonplaceholder.typicode.com/todos/1");
             var client = _clientFactory.CreateClient();
-            var response = await client.SendAsync(request);
+            var response = await client.SendAsync(request).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadAsStringAsync();
+                using var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions).ConfigureAwait(false);
             }
-            else
-            {
-                return $"StatusCode: {response.StatusCode}";
-            }
+            return null;
         }
     }
 }

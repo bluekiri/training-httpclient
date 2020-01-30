@@ -5,6 +5,7 @@ using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace HttpFactory.Named
 {
@@ -12,6 +13,8 @@ namespace HttpFactory.Named
     {
         static async Task<int> Main(string[] args)
         {
+            Console.WriteLine($"Process: {System.Diagnostics.Process.GetCurrentProcess().Id}");
+            Console.ReadKey();
             var builder = new HostBuilder()
               .ConfigureServices((hostContext, services) =>
               {
@@ -32,7 +35,7 @@ namespace HttpFactory.Named
             try
             {
                 var myService = services.GetRequiredService<IMyService>();
-                var pageContent = await myService.GetPage().ConfigureAwait(false);
+                 var pageContent = await myService.GetPage().ConfigureAwait(false);
                 
                 var userId = 1;
                 if(args.Length >0 && int.TryParse(args[0], out int res)){
@@ -40,7 +43,9 @@ namespace HttpFactory.Named
                 }
 
                 var user = await myService.GetUser(userId).ConfigureAwait(false);
-
+                // await foreach( var result in  myService.GetUser2(userId) ){
+                //     Console.WriteLine($"User: {JsonSerializer.Serialize(result)}");
+                // }
                 Console.WriteLine(pageContent.Substring(0, 500));
                 Console.WriteLine($"User: {JsonSerializer.Serialize(user)}");
             }
@@ -51,6 +56,7 @@ namespace HttpFactory.Named
 
                 logger.LogError(ex, "An error occurred.");
             }
+            Console.ReadLine();
 
 
             return 0;
@@ -69,6 +75,7 @@ namespace HttpFactory.Named
     {
         Task<string> GetPage();
         Task<UserDemo> GetUser(int id);
+        IAsyncEnumerable<UserDemo> GetUser2(int id);
     }
 
     public class MyService : IMyService
@@ -113,6 +120,22 @@ namespace HttpFactory.Named
                 return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions).ConfigureAwait(false);
             }
             return null;
+        }
+        public async IAsyncEnumerable<UserDemo> GetUser2(int id) 
+        {
+            for(var i = 0; i<10; i++)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get,$"/todos/{id}");
+                var client = _clientFactory.CreateClient("myusersapi");
+                var response = await client.SendAsync(request).ConfigureAwait(false);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    using var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                    yield  return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions).ConfigureAwait(false);
+                }
+                
+            }
         }
     }
 

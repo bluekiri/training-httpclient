@@ -42,7 +42,7 @@ namespace HttpFactory.Typed
 
                 logger.LogError(ex, "An error occurred.");
             }
-
+            Console.ReadLine();
 
             return 0;
         }
