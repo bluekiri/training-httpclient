@@ -1,10 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Text.Json;
 
 namespace HttpFactory.Basic.MultipleCreation
@@ -50,13 +46,7 @@ namespace HttpFactory.Basic.MultipleCreation
         }
     }
 
-    public class UserDemo
-    {
-        public int UserId { get; set; }
-        public int Id { get; set; }
-        public string Title { get; set; }
-        public bool Completed { get; set; }
-    }
+    public record class UserDemo(int UserId, int Id, string Title, bool Completed);
 
     public interface IMyService
     {
@@ -68,7 +58,7 @@ namespace HttpFactory.Basic.MultipleCreation
     {
         private readonly IHttpClientFactory _clientFactory;
 
-        private static  JsonSerializerOptions JsonSerializerOptions => new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IgnoreNullValues =true };
+        private static  JsonSerializerOptions JsonSerializerOptions => new() { PropertyNameCaseInsensitive = true};
 
         public MyService(IHttpClientFactory clientFactory)
         {
@@ -85,12 +75,12 @@ namespace HttpFactory.Basic.MultipleCreation
                 var request = new HttpRequestMessage(HttpMethod.Get,
                 "https://jsonplaceholder.typicode.com/todos/1");
                 
-                var response = await client.SendAsync(request).ConfigureAwait(false);
+                var response = await client.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    using var content = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-                    yield return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions).ConfigureAwait(false);
+                    using var content = await response.Content.ReadAsStreamAsync();
+                    yield return await JsonSerializer.DeserializeAsync<UserDemo>(content,JsonSerializerOptions);
                 }
                 else
                 {
